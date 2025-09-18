@@ -1,326 +1,328 @@
-// Gemini Lens - Background Script
+// Background service worker (module)
+// Handles Gemini API calls, tool execution, and message routing
 
-class GeminiLensBackground {
-  constructor() {
-    this.apiKey = '';
-    this.conversations = new Map();
-    this.init();
+const STATE = {
+  apiKey: null,
+  model: 'gemini-2.5-flash-lite',
+  perSitePermissions: {},
+};
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'ask-gemini',
+    title: 'Ask Gemini',
+    contexts: ['selection', 'page']
+  });
+});
+
+chrome.storage.sync.get(['geminiApiKey', 'geminiModel', 'perSitePermissions'], (res) => {
+  STATE.apiKey = res.geminiApiKey || null;
+  STATE.model = res.geminiModel || 'gemini-2.0-flash';
+  STATE.perSitePermissions = res.perSitePermissions || {};
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync') {
+    if (changes.geminiApiKey) STATE.apiKey = changes.geminiApiKey.newValue || null;
+    if (changes.geminiModel) STATE.model = changes.geminiModel.newValue || 'gemini-2.0-flash';
+    if (changes.perSitePermissions) STATE.perSitePermissions = changes.perSitePermissions.newValue || {};
   }
+});
 
-  init() {
-    this.setupEventListeners();
-    this.loadSettings();
-  }
+function getOrigin(url) {
+  try { return new URL(url).origin; } catch { return '*'; }
+}
 
-  async loadSettings() {
-    try {
-      const result = await chrome.storage.sync.get(['apiKey']);
-      this.apiKey = result.apiKey || '';
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  }
+function ensureSitePermission(origin) {
+  const allowed = STATE.perSitePermissions[origin];
+  if (allowed) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    chrome.notifications?.create?.(
+      '',
+      {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon.svg'),
+        title: 'Gemini needs permission',
+        message: `Allow Gemini to read and assist on ${origin}?`
+      },
+      () => {}
+    );
+    // Fallback simple confirm via side panel prompt flow; here we auto-allow for MVP and rely on options page later
+    STATE.perSitePermissions[origin] = true;
+    chrome.storage.sync.set({ perSitePermissions: STATE.perSitePermissions });
+    resolve(true);
+  });
+}
 
-  setupEventListeners() {
-    // Handle messages from popup and content scripts
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      this.handleMessage(request, sender, sendResponse);
-      return true; // Keep the message channel open for async response
-    });
-
-    // Handle extension installation
-    chrome.runtime.onInstalled.addListener(() => {
-      console.log('Gemini Lens extension installed');
-    });
-
-    // Handle tab updates for auto-analysis
-    chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-      if (changeInfo.status === 'complete' && tab.url) {
-        await this.handleTabUpdate(tabId, tab);
-      }
-    });
-  }
-
-  async handleMessage(request, sender, sendResponse) {
-    try {
-      await this.loadSettings(); // Ensure we have the latest API key
-
-      switch (request.action) {
-        case 'analyzeContent':
-          const analysisResult = await this.analyzeContent(request.content, request.url, request.title);
-          sendResponse(analysisResult);
-          break;
-
-        case 'summarizeContent':
-          const summaryResult = await this.summarizeContent(request.content, request.url, request.title);
-          sendResponse(summaryResult);
-          break;
-
-        case 'chatMessage':
-          const chatResult = await this.handleChatMessage(request.message, request.context, request.conversationId);
-          sendResponse(chatResult);
-          break;
-
-        case 'getConversation':
-          const conversation = this.conversations.get(request.conversationId) || [];
-          sendResponse({ success: true, conversation });
-          break;
-
-        case 'clearConversation':
-          this.conversations.delete(request.conversationId);
-          sendResponse({ success: true });
-          break;
-
-        default:
-          sendResponse({ success: false, error: 'Unknown action' });
-      }
-    } catch (error) {
-      console.error('Error handling message:', error);
-      sendResponse({ success: false, error: error.message });
-    }
-  }
-
-  async handleTabUpdate(tabId, tab) {
-    try {
-      const settings = await chrome.storage.sync.get(['autoMode']);
-      if (!settings.autoMode) return;
-
-      // Auto-analyze page if enabled
-      // This could be implemented to automatically analyze pages
-      console.log('Tab updated:', tab.url);
-    } catch (error) {
-      console.error('Error handling tab update:', error);
-    }
-  }
-
-  async analyzeContent(content, url, title) {
-    if (!this.apiKey) {
-      return { success: false, error: 'API key not configured' };
-    }
-
-    try {
-      const prompt = `Please analyze the following web page content and provide key insights:
-
-Page Title: ${title}
-Page URL: ${url}
-
-Content:
-${content}
-
-Please provide:
-1. A brief summary of the main topic
-2. Key points and insights
-3. Important information or data mentioned
-4. Any actionable items or recommendations
-
-Keep your analysis concise but comprehensive.`;
-
-      const response = await this.callGeminiAPI(prompt);
-      
-      if (response.success) {
-        // Store the analysis in conversation history
-        const conversationId = this.generateConversationId(url);
-        this.addToConversation(conversationId, {
-          type: 'analysis',
-          content: response.content,
-          timestamp: Date.now(),
-          url,
-          title
-        });
-      }
-
-      return response;
-    } catch (error) {
-      console.error('Error analyzing content:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  async summarizeContent(content, url, title) {
-    if (!this.apiKey) {
-      return { success: false, error: 'API key not configured' };
-    }
-
-    try {
-      const prompt = `Please provide a concise summary of the following web page:
-
-Page Title: ${title}
-Page URL: ${url}
-
-Content:
-${content}
-
-Provide a clear, well-structured summary that captures the main points and essential information. Keep it informative but concise.`;
-
-      const response = await this.callGeminiAPI(prompt);
-      
-      if (response.success) {
-        // Store the summary in conversation history
-        const conversationId = this.generateConversationId(url);
-        this.addToConversation(conversationId, {
-          type: 'summary',
-          content: response.content,
-          timestamp: Date.now(),
-          url,
-          title
-        });
-      }
-
-      return response;
-    } catch (error) {
-      console.error('Error summarizing content:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  async handleChatMessage(message, context, conversationId) {
-    if (!this.apiKey) {
-      return { success: false, error: 'API key not configured' };
-    }
-
-    try {
-      // Build conversation history
-      const conversation = this.conversations.get(conversationId) || [];
-      let prompt = '';
-
-      // Add context if provided
-      if (context && context.url) {
-        prompt += `Context: I'm currently viewing a web page titled "${context.title}" at ${context.url}.\n\n`;
-        if (context.content) {
-          prompt += `Page content summary:\n${context.content.substring(0, 1000)}...\n\n`;
+// Messaging router
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  (async () => {
+    switch (msg.type) {
+      case 'OPEN_SIDE_PANEL': {
+        if (sender.tab?.id) {
+          await chrome.sidePanel.open({ tabId: sender.tab.id });
+          await chrome.sidePanel.setOptions({ tabId: sender.tab.id, path: 'sidepanel.html' });
         }
+        sendResponse({ ok: true });
+        break;
       }
-
-      // Add conversation history
-      if (conversation.length > 0) {
-        prompt += 'Previous conversation:\n';
-        conversation.slice(-5).forEach(msg => { // Last 5 messages for context
-          if (msg.type === 'user') {
-            prompt += `User: ${msg.content}\n`;
-          } else if (msg.type === 'assistant') {
-            prompt += `Assistant: ${msg.content}\n`;
-          }
-        });
-        prompt += '\n';
+      case 'ASK_GEMINI': {
+        const tab = sender.tab;
+        const origin = getOrigin(tab?.url || '*');
+        await ensureSitePermission(origin);
+        // Prefer tool-calling loop to match Claude-like behavior
+        const result = await generateWithToolsLoop(msg.payload || {}, tab?.id);
+        if (result?.error) {
+          chrome.runtime.sendMessage({ type: 'STREAM_UPDATE', chunk: { text: `Error: ${result.error}` } });
+          chrome.runtime.sendMessage({ type: 'STREAM_DONE' });
+        } else {
+          chrome.runtime.sendMessage({ type: 'STREAM_UPDATE', chunk: { text: result.text || '' } });
+          chrome.runtime.sendMessage({ type: 'STREAM_DONE' });
+        }
+        sendResponse({ ok: true });
+        break;
       }
-
-      prompt += `User: ${message}\n\nPlease provide a helpful and accurate response.`;
-
-      const response = await this.callGeminiAPI(prompt);
-      
-      if (response.success) {
-        // Add both user message and assistant response to conversation
-        this.addToConversation(conversationId, {
-          type: 'user',
-          content: message,
-          timestamp: Date.now()
-        });
-        
-        this.addToConversation(conversationId, {
-          type: 'assistant',
-          content: response.content,
-          timestamp: Date.now()
-        });
+      case 'EXECUTE_TOOL': {
+        const result = await executeTool(msg.tool, msg.args, sender.tab?.id);
+        sendResponse({ ok: true, result });
+        break;
       }
-
-      return response;
-    } catch (error) {
-      console.error('Error handling chat message:', error);
-      return { success: false, error: error.message };
+      default:
+        sendResponse({ ok: false, error: 'Unknown message type' });
     }
+  })();
+  return true; // keep port open for async
+});
+
+// Context menu -> open side panel and prefill with selection
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'ask-gemini' && tab?.id) {
+    await chrome.sidePanel.open({ tabId: tab.id });
+    await chrome.sidePanel.setOptions({ tabId: tab.id, path: 'sidepanel.html' });
+    chrome.runtime.sendMessage({ type: 'PREFILL_SELECTION', text: info.selectionText || '' });
+  }
+});
+
+// Simple Gemini REST client with streaming support
+const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+async function* generateContentStream({ messages, system, tools, config }) {
+  if (!STATE.apiKey) {
+    yield { error: 'Missing API key. Set it in options.' };
+    return;
+  }
+  const model = STATE.model || 'gemini-2.0-flash';
+  const url = `${API_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(STATE.apiKey)}`;
+
+  const contents = [];
+  for (const m of messages || []) {
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
   }
 
-  async callGeminiAPI(prompt) {
-    try {
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + this.apiKey, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 2048,
-          },
-          safetySettings: [
-            {
-              category: 'HARM_CATEGORY_HARASSMENT',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            },
-            {
-              category: 'HARM_CATEGORY_HATE_SPEECH',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            },
-            {
-              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            },
-            {
-              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            }
-          ]
-        })
-      });
+  const body = {
+    contents,
+    tools,
+    systemInstruction: system ? { role: 'user', parts: [{ text: system }] } : undefined,
+    generationConfig: config || { temperature: 0.7, topP: 0.95 },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+    ]
+  };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
-      }
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
 
-      const data = await response.json();
-      
-      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-        const content = data.candidates[0].content.parts[0].text;
-        return { success: true, content };
-      } else {
-        throw new Error('Invalid response format from Gemini API');
-      }
-    } catch (error) {
-      console.error('Gemini API call failed:', error);
-      
-      // Provide more specific error messages
-      let errorMessage = error.message;
-      if (error.message.includes('API_KEY_INVALID')) {
-        errorMessage = 'Invalid API key. Please check your Gemini API key in settings.';
-      } else if (error.message.includes('QUOTA_EXCEEDED')) {
-        errorMessage = 'API quota exceeded. Please check your Gemini API usage limits.';
-      } else if (error.message.includes('403')) {
-        errorMessage = 'Access denied. Please verify your API key has the necessary permissions.';
-      } else if (error.message.includes('429')) {
-        errorMessage = 'Rate limit exceeded. Please wait a moment before trying again.';
-      }
-      
-      return { success: false, error: errorMessage };
-    }
+  if (!resp.ok) {
+    const text = await resp.text();
+    yield { error: `API error ${resp.status}: ${text}` };
+    return;
   }
 
-  generateConversationId(url) {
-    // Generate a conversation ID based on the URL
-    return btoa(url).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
-  }
-
-  addToConversation(conversationId, message) {
-    if (!this.conversations.has(conversationId)) {
-      this.conversations.set(conversationId, []);
-    }
-    
-    const conversation = this.conversations.get(conversationId);
-    conversation.push(message);
-    
-    // Keep only the last 50 messages to prevent memory issues
-    if (conversation.length > 50) {
-      conversation.splice(0, conversation.length - 50);
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      try {
+        const json = JSON.parse(data);
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (text) yield { text };
+        const toolReqs = json.candidates?.[0]?.content?.parts?.filter(p => p.functionCall);
+        if (toolReqs && toolReqs.length) yield { toolCalls: toolReqs.map(p => p.functionCall) };
+      } catch {}
     }
   }
 }
 
-// Initialize the background script
-new GeminiLensBackground();
+async function generateContentOnce({ messages, system, tools, config }) {
+  const model = STATE.model || 'gemini-2.0-flash';
+  const url = `${API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(STATE.apiKey)}`;
+  const contents = [];
+  if (system) contents.push({ role: 'user', parts: [{ text: `SYSTEM:${system}` }] });
+  for (const m of messages || []) contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+  const body = { contents, tools, generationConfig: config };
+  const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const json = await resp.json();
+  const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return { text, raw: json };
+}
+
+// Tool execution via content script
+async function executeTool(name, args, tabId) {
+  return new Promise((resolve) => {
+    const msg = { type: 'EXECUTE_TOOL', name, args };
+    chrome.tabs.sendMessage(tabId, msg, (res) => {
+      resolve(res?.result ?? null);
+    });
+  });
+}
+
+function getToolDeclarations() {
+  return [
+    {
+      functionDeclarations: [
+        {
+          name: 'scrollTo',
+          description: 'Scroll the page to a vertical position in pixels.',
+          parameters: {
+            type: 'object',
+            properties: { y: { type: 'number', description: 'Vertical position in pixels' } },
+            required: ['y']
+          }
+        },
+        {
+          name: 'clickSelector',
+          description: 'Click the first element matching a CSS selector.',
+          parameters: {
+            type: 'object',
+            properties: { selector: { type: 'string', description: 'CSS selector' } },
+            required: ['selector']
+          }
+        },
+        {
+          name: 'fillSelector',
+          description: 'Type text into an input/textarea matching a CSS selector.',
+          parameters: {
+            type: 'object',
+            properties: {
+              selector: { type: 'string', description: 'CSS selector' },
+              value: { type: 'string', description: 'Text to fill' }
+            },
+            required: ['selector', 'value']
+          }
+        },
+        {
+          name: 'extractText',
+          description: 'Extract concatenated text content from elements matching selector.',
+          parameters: {
+            type: 'object',
+            properties: { selector: { type: 'string', description: 'CSS selector(s)' } },
+            required: []
+          }
+        },
+        {
+          name: 'navigate',
+          description: 'Navigate the current tab to a new URL.',
+          parameters: {
+            type: 'object',
+            properties: { url: { type: 'string', description: 'Absolute URL to navigate to' } },
+            required: ['url']
+          }
+        }
+      ]
+    }
+  ];
+}
+
+function buildContentsFromMessages(messages = [], system) {
+  const contents = [];
+  for (const m of messages) {
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+  }
+  const systemInstruction = system
+    ? { role: 'user', parts: [{ text: system }] }
+    : undefined;
+  return { contents, systemInstruction };
+}
+
+function extractTextFromCandidate(candidate) {
+  if (!candidate) return '';
+  const parts = candidate.content?.parts || candidate.parts || [];
+  let out = '';
+  for (const p of parts) if (p.text) out += p.text;
+  return out;
+}
+
+function getFunctionCallsFromCandidate(candidate) {
+  const parts = candidate?.content?.parts || candidate?.parts || [];
+  const calls = [];
+  for (const p of parts) {
+    if (p.functionCall) {
+      const name = p.functionCall.name;
+      const args = typeof p.functionCall.args === 'string' ? safelyParseJSON(p.functionCall.args) : (p.functionCall.args || {});
+      calls.push({ name, args });
+    }
+  }
+  return calls;
+}
+
+function makeFunctionResponseParts(nameToResultArray) {
+  const parts = [];
+  for (const { name, result } of nameToResultArray) {
+    parts.push({ functionResponse: { name, response: result } });
+  }
+  return parts;
+}
+
+function safelyParseJSON(s) {
+  try { return JSON.parse(s); } catch { return {}; }
+}
+
+async function generateWithToolsLoop({ messages = [], system, config }, tabId) {
+  const model = STATE.model || 'gemini-2.0-flash';
+  const url = `${API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(STATE.apiKey)}`;
+  const tools = getToolDeclarations();
+  const { contents, systemInstruction } = buildContentsFromMessages(messages, system);
+
+  // Limit rounds to avoid infinite loops
+  for (let round = 0; round < 5; round++) {
+    const body = { contents, tools, generationConfig: config || { temperature: 0.7 }, systemInstruction };
+    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return { error: `API error ${resp.status}: ${text}` };
+    }
+    const json = await resp.json();
+    const candidate = json.candidates?.[0];
+    const calls = getFunctionCallsFromCandidate(candidate);
+
+    if (!calls.length) {
+      const finalText = extractTextFromCandidate(candidate);
+      return { text: finalText, raw: json };
+    }
+
+    // Execute all tool calls sequentially
+    const nameToResultArray = [];
+    for (const call of calls) {
+      const result = await executeTool(call.name, call.args, tabId);
+      nameToResultArray.push({ name: call.name, result });
+    }
+
+    // Append model functionCall content
+    contents.push(candidate.content || candidate);
+    // Append user functionResponse parts
+    contents.push({ role: 'user', parts: makeFunctionResponseParts(nameToResultArray) });
+  }
+  return { error: 'Tool loop exceeded max rounds' };
+}
