@@ -1,0 +1,32 @@
+# APX Lens Chrome Extension .gitignore
+
+# Node modules (if using npm for development)
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Development files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+/tmp/
+temp/
+
+# Chrome extension packaging
+*.crx
+*.pem
+
+# Test files
+test-*.html
+demo-*.html
