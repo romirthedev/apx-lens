@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Lens - Side Panel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="sidepanel-container">
+    <header class="sidepanel-header">
+      <div class="header-content">
+        <div class="logo">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="currentColor"/>
+          </svg>
+          <span>Gemini Lens</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn-icon" id="clearChatBtn" title="Clear chat">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 6H5H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="btn-icon" id="settingsBtn" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+              <path d="M19.4 15A1.65 1.65 0 0 0 20.25 13.5A1.65 1.65 0 0 0 19.4 12L18.85 11.5A1.65 1.65 0 0 1 18.85 9.5L19.4 9A1.65 1.65 0 0 0 20.25 7.5A1.65 1.65 0 0 0 19.4 6L18.85 5.5A1.65 1.65 0 0 1 18.85 3.5L19.4 3A1.65 1.65 0 0 0 20.25 1.5A1.65 1.65 0 0 0 19.4 0L18.85 -0.5A1.65 1.65 0 0 1 18.85 -2.5L19.4 -3A1.65 1.65 0 0 0 20.25 -4.5A1.65 1.65 0 0 0 19.4 -6L18.85 -6.5A1.65 1.65 0 0 1 18.85 -8.5L19.4 -9A1.65 1.65 0 0 0 20.25 -10.5A1.65 1.65 0 0 0 19.4 -12L18.85 -12.5A1.65 1.65 0 0 1 18.85 -14.5L19.4 -15A1.65 1.65 0 0 0 20.25 -16.5A1.65 1.65 0 0 0 19.4 -18L18.85 -18.5A1.65 1.65 0 0 1 18.85 -20.5L19.4 -21A1.65 1.65 0 0 0 20.25 -22.5A1.65 1.65 0 0 0 19.4 -24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-context" id="pageContext">
+      <div class="context-header">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M21 16V8C20.9996 7.64928 20.9071 7.30481 20.7315 7.00116C20.556 6.69751 20.3037 6.44536 20 6.27L13 2.27C12.696 2.09446 12.3511 2.00205 12 2.00205C11.6489 2.00205 11.304 2.09446 11 2.27L4 6.27C3.69626 6.44536 3.44398 6.69751 3.26846 7.00116C3.09294 7.30481 3.00036 7.64928 3 8V16C3.00036 16.3507 3.09294 16.6952 3.26846 16.9988C3.44398 17.3025 3.69626 17.5546 4 17.73L11 21.73C11.304 21.9055 11.6489 21.9979 12 21.9979C12.3511 21.9979 12.696 21.9055 13 21.73L20 17.73C20.3037 17.5546 20.556 17.3025 20.7315 16.9988C20.9071 16.6952 20.9996 16.3507 21 16Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="7.5,4.21 12,6.81 16.5,4.21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="7.5,19.79 7.5,14.6 3,12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="21,12 16.5,14.6 16.5,19.79" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="12,22.08 12,17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Current Page</span>
+      </div>
+      <div class="context-content">
+        <div class="page-title" id="pageTitle">Loading...</div>
+        <div class="page-url" id="pageUrl">Loading...</div>
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome-message">
+          <div class="welcome-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <h3>Welcome to Gemini Lens!</h3>
+          <p>I'm your AI assistant powered by Google Gemini. I can help you analyze web pages, answer questions, and assist with various tasks.</p>
+          <div class="quick-suggestions">
+            <button class="suggestion-btn" data-prompt="Analyze this page and provide key insights">📊 Analyze Page</button>
+            <button class="suggestion-btn" data-prompt="Summarize the main content of this page">📝 Summarize</button>
+            <button class="suggestion-btn" data-prompt="What are the key takeaways from this page?">💡 Key Points</button>
+            <button class="suggestion-btn" data-prompt="Help me understand this content better">🤔 Explain</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-container">
+      <div class="input-wrapper">
+        <textarea 
+          id="messageInput" 
+          placeholder="Ask me anything about this page or any topic..."
+          rows="1"
+        ></textarea>
+        <div class="input-actions">
+          <button class="btn-icon" id="attachBtn" title="Attach page content">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21.44 11.05L12.25 20.24C11.1242 21.3658 9.59722 21.9983 8.005 21.9983C6.41278 21.9983 4.88583 21.3658 3.76 20.24C2.63417 19.1142 2.00166 17.5872 2.00166 15.995C2.00166 14.4028 2.63417 12.8758 3.76 11.75L12.33 3.18C13.0806 2.42944 14.0985 2.00867 15.16 2.00867C16.2215 2.00867 17.2394 2.42944 17.99 3.18C18.7406 3.93056 19.1613 4.94844 19.1613 6.00995C19.1613 7.07145 18.7406 8.08933 17.99 8.83989L10.07 16.76C9.69447 17.1355 9.18578 17.3467 8.655 17.3467C8.12422 17.3467 7.61553 17.1355 7.24 16.76C6.86447 16.3845 6.65328 15.8758 6.65328 15.345C6.65328 14.8142 6.86447 14.3055 7.24 13.93L14.71 6.46" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="btn-send" id="sendBtn" title="Send message">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <polygon points="22,2 15,22 11,13 2,9 22,2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="input-footer">
+        <span class="powered-by">Powered by Google Gemini</span>
+        <div class="input-hints">
+          <span class="hint">Press Enter to send, Shift+Enter for new line</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
