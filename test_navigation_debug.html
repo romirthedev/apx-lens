@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        .debug-button {
+            background: #2196F3;
+        }
+        .debug-button:hover {
+            background: #1976D2;
+        }
+        .clear-button {
+            background: #f44336;
+        }
+        .clear-button:hover {
+            background: #d32f2f;
+        }
+        .log-area {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .workflow-step {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .tool-call {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 8px;
+            margin: 3px 0;
+            font-family: monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Navigation Debug Test</h1>
+        <p>This tool helps debug the navigation workflow issues where the extension opens random pages instead of following the correct search-to-extraction flow.</p>
+    </div>
+
+    <div class="container">
+        <div class="test-section">
+            <h3>🎯 Expected Workflow Test</h3>
+            <p>Test the complete workflow: Search → Click Result → Extract Content</p>
+            <button class="test-button" onclick="testCompleteWorkflow()">Test Complete Workflow</button>
+            <button class="test-button debug-button" onclick="testStepByStep()">Step-by-Step Debug</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Individual Tool Tests</h3>
+            <p>Test each tool individually to identify where the issue occurs</p>
+            <button class="test-button" onclick="testSearchWeb()">Test searchWeb</button>
+            <button class="test-button" onclick="testGetSearchResults()">Test getSearchResults</button>
+            <button class="test-button" onclick="testClickSearchResult()">Test clickSearchResultByDomain</button>
+            <button class="test-button" onclick="testExtractText()">Test extractText</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🌐 Real-World Scenarios</h3>
+            <p>Test with actual queries that have been problematic</p>
+            <button class="test-button" onclick="testUSNewsUniversities()">Test US News Universities</button>
+            <button class="test-button" onclick="testWikipediaSearch()">Test Wikipedia Search</button>
+            <button class="test-button" onclick="testNewsSearch()">Test News Search</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Navigation Tracking</h3>
+            <p>Monitor tab changes and URL navigation</p>
+            <button class="test-button debug-button" onclick="startNavigationTracking()">Start Tracking</button>
+            <button class="test-button clear-button" onclick="stopNavigationTracking()">Stop Tracking</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>📋 Debug Log</h3>
+        <button class="test-button clear-button" onclick="clearLog()">Clear Log</button>
+        <div id="logArea" class="log-area"></div>
+    </div>
+
+    <script>
+        let isTracking = false;
+        let trackingInterval = null;
+        let lastUrl = '';
+        let lastTabId = null;
+
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logArea.textContent += logEntry;
+            logArea.scrollTop = logArea.scrollHeight;
+            console.log(`[Navigation Debug] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('logArea').textContent = '';
+        }
+
+        async function getCurrentTab() {
+            return new Promise((resolve) => {
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    resolve(tabs[0]);
+                });
+            });
+        }
+
+        async function sendMessage(message) {
+            return new Promise((resolve) => {
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
+                            resolve(response || { error: 'No response' });
+                        });
+                    } else {
+                        resolve({ error: 'No active tab' });
+                    }
+                });
+            });
+        }
+
+        async function testCompleteWorkflow() {
+            log('🎯 Starting Complete Workflow Test', 'info');
+            
+            try {
+                // Step 1: Search
+                log('Step 1: Performing search for "top computer science universities"');
+                const searchResult = await sendMessage({
+                    type: 'executeTool',
+                    name: 'searchWeb',
+                    args: { query: 'top computer science universities', engine: 'google' }
+                });
+                log(`Search result: ${JSON.stringify(searchResult)}`);
+                
+                if (searchResult.error) {
+                    log(`❌ Search failed: ${searchResult.error}`, 'error');
+                    return;
+                }
+                
+                // Wait for page load
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Step 2: Get search results
+                log('Step 2: Getting search results');
+                const resultsResponse = await sendMessage({
+                    type: 'executeTool',
+                    name: 'getSearchResults',
+                    args: {}
+                });
+                log(`Search results: ${JSON.stringify(resultsResponse, null, 2)}`);
+                
+                if (resultsResponse.error) {
+                    log(`❌ Getting results failed: ${resultsResponse.error}`, 'error');
+                    return;
+                }
+                
+                // Step 3: Click on US News result
+                log('Step 3: Clicking on usnews.com result');
+                const clickResult = await sendMessage({
+                    type: 'executeTool',
+                    name: 'clickSearchResultByDomain',
+                    args: { domain: 'usnews.com' }
+                });
+                log(`Click result: ${JSON.stringify(clickResult)}`);
+                
+                if (clickResult.error) {
+                    log(`❌ Click failed: ${clickResult.error}`, 'error');
+                    return;
+                }
+                
+                // Wait for navigation
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                
+                // Step 4: Extract content
+                log('Step 4: Extracting content with scroll');
+                const extractResult = await sendMessage({
+                    type: 'executeTool',
+                    name: 'extractText',
+                    args: { scroll: true }
+                });
+                log(`Extract result length: ${extractResult.text ? extractResult.text.length : 'No text'} characters`);
+                
+                if (extractResult.text) {
+                    log(`✅ Workflow completed successfully! Extracted ${extractResult.text.length} characters`, 'success');
+                    log(`First 500 chars: ${extractResult.text.substring(0, 500)}...`);
+                } else {
+                    log(`❌ Extraction failed: ${extractResult.error || 'No text extracted'}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Workflow failed with error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStepByStep() {
+            log('🔧 Starting Step-by-Step Debug', 'info');
+            
+            const currentTab = await getCurrentTab();
+            log(`Current tab: ${currentTab.title} - ${currentTab.url}`);
+            
+            // Test each step with user confirmation
+            if (confirm('Step 1: Test searchWeb tool?')) {
+                await testSearchWeb();
+            }
+            
+            if (confirm('Step 2: Test getSearchResults tool?')) {
+                await testGetSearchResults();
+            }
+            
+            if (confirm('Step 3: Test clickSearchResultByDomain tool?')) {
+                await testClickSearchResult();
+            }
+            
+            if (confirm('Step 4: Test extractText tool?')) {
+                await testExtractText();
+            }
+        }
+
+        async function testSearchWeb() {
+            log('🔍 Testing searchWeb tool');
+            const result = await sendMessage({
+                type: 'executeTool',
+                name: 'searchWeb',
+                args: { query: 'test search query', engine: 'google' }
+            });
+            log(`searchWeb result: ${JSON.stringify(result)}`);
+        }
+
+        async function testGetSearchResults() {
+            log('📋 Testing getSearchResults tool');
+            const result = await sendMessage({
+                type: 'executeTool',
+                name: 'getSearchResults',
+                args: {}
+            });
+            log(`getSearchResults result: ${JSON.stringify(result, null, 2)}`);
+        }
+
+        async function testClickSearchResult() {
+            log('👆 Testing clickSearchResultByDomain tool');
+            const result = await sendMessage({
+                type: 'executeTool',
+                name: 'clickSearchResultByDomain',
+                args: { domain: 'wikipedia.org' }
+            });
+            log(`clickSearchResultByDomain result: ${JSON.stringify(result)}`);
+        }
+
+        async function testExtractText() {
+            log('📄 Testing extractText tool');
+            const result = await sendMessage({
+                type: 'executeTool',
+                name: 'extractText',
+                args: { scroll: true }
+            });
+            log(`extractText result length: ${result.text ? result.text.length : 'No text'} characters`);
+            if (result.text) {
+                log(`First 200 chars: ${result.text.substring(0, 200)}...`);
+            }
+        }
+
+        async function testUSNewsUniversities() {
+            log('🎓 Testing US News Universities scenario');
+            
+            // Search for US News universities
+            const searchResult = await sendMessage({
+                type: 'executeTool',
+                name: 'searchWeb',
+                args: { query: 'US News best computer science universities ranking', engine: 'google' }
+            });
+            log(`US News search: ${JSON.stringify(searchResult)}`);
+            
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Try to click US News result
+            const clickResult = await sendMessage({
+                type: 'executeTool',
+                name: 'clickSearchResultByDomain',
+                args: { domain: 'usnews.com' }
+            });
+            log(`US News click: ${JSON.stringify(clickResult)}`);
+        }
+
+        async function testWikipediaSearch() {
+            log('📚 Testing Wikipedia scenario');
+            
+            const searchResult = await sendMessage({
+                type: 'executeTool',
+                name: 'searchWeb',
+                args: { query: 'artificial intelligence wikipedia', engine: 'google' }
+            });
+            log(`Wikipedia search: ${JSON.stringify(searchResult)}`);
+            
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            const clickResult = await sendMessage({
+                type: 'executeTool',
+                name: 'clickSearchResultByDomain',
+                args: { domain: 'wikipedia.org' }
+            });
+            log(`Wikipedia click: ${JSON.stringify(clickResult)}`);
+        }
+
+        async function testNewsSearch() {
+            log('📰 Testing News scenario');
+            
+            const searchResult = await sendMessage({
+                type: 'executeTool',
+                name: 'searchWeb',
+                args: { query: 'latest technology news', engine: 'google' }
+            });
+            log(`News search: ${JSON.stringify(searchResult)}`);
+        }
+
+        async function startNavigationTracking() {
+            if (isTracking) {
+                log('⚠️ Navigation tracking already active');
+                return;
+            }
+            
+            isTracking = true;
+            log('🎯 Starting navigation tracking');
+            
+            const currentTab = await getCurrentTab();
+            lastUrl = currentTab.url;
+            lastTabId = currentTab.id;
+            log(`Initial state: Tab ${lastTabId} - ${lastUrl}`);
+            
+            trackingInterval = setInterval(async () => {
+                try {
+                    const currentTab = await getCurrentTab();
+                    
+                    if (currentTab.id !== lastTabId) {
+                        log(`🔄 Tab changed: ${lastTabId} → ${currentTab.id}`);
+                        lastTabId = currentTab.id;
+                    }
+                    
+                    if (currentTab.url !== lastUrl) {
+                        log(`🌐 URL changed: ${lastUrl} → ${currentTab.url}`);
+                        lastUrl = currentTab.url;
+                    }
+                } catch (error) {
+                    log(`❌ Tracking error: ${error.message}`);
+                }
+            }, 1000);
+        }
+
+        function stopNavigationTracking() {
+            if (!isTracking) {
+                log('⚠️ Navigation tracking not active');
+                return;
+            }
+            
+            isTracking = false;
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null;
+            }
+            log('🛑 Navigation tracking stopped');
+        }
+
+        // Initialize
+        log('🚀 Navigation Debug Test initialized');
+        log('Click any test button to start debugging the navigation workflow');
+    </script>
+</body>
+</html>

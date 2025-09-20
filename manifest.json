@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Gemini for Chrome (APX Lens)",
+  "name": "Apx Lens",
   "version": "0.1.0",
-  "description": "Claude for Chrome, but powered by Google Gemini.",
+  "description": "Your Personal Assistant, built into Chrome.",
   "permissions": [
     "storage",
     "scripting",
@@ -19,7 +19,7 @@
   },
   "action": {
     "default_title": "Gemini",
-    "default_popup": "popup.html"
+    "default_icon": "icons/icon.svg"
   },
   "options_page": "options.html",
   "side_panel": {
@@ -29,7 +29,8 @@
     {
       "matches": ["<all_urls>"],
       "js": ["contentScript.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ]
 }

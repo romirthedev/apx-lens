@@ -3,17 +3,89 @@
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
-const clearBtn = document.getElementById('clearBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 
 const hasChrome = typeof window !== 'undefined' && typeof chrome !== 'undefined' && !!chrome.runtime;
 
+// Conversation memory (kept in the side panel only)
+const chatHistory = []; // array of { role: 'user'|'assistant', content: string }
+let streamingAccumulator = '';
+let pendingUserText = null;
+
+// Clear, intelligent system prompt to guide the model
+const SYSTEM_PROMPT = [
+  'You are a helpful, concise assistant embedded in a Chrome extension side panel.',
+  'Always aim to complete the real-world task end-to-end using tools when needed.',
+  'CRITICAL WORKFLOW: If the user asks to find/collect information on the web, follow this EXACT sequence:',
+  '1) Use searchWeb to perform the search with relevant keywords',
+  '2) Use getSearchResults to see what results are available on the search page',
+  '3) Use clickSearchResultByDomain to click on the most relevant result (prefer authoritative sources like .edu, .gov, or well-known sites)',
+  '4) Use waitForSelector with a common selector like "body" or "main" to ensure the page is fully loaded',
+  '5) Use extractText with scroll=true to get comprehensive content',
+  '6) Provide a clear summary with the source URL',
+  'NEVER randomly navigate or open unrelated links. ALWAYS use clickSearchResultByDomain with a specific domain from the search results.',
+  'Do not stop after the search. Continue with navigation and extraction steps until the information is obtained or blocked by a limitation.',
+  'IMPORTANT: When extracting rankings, lists, or comprehensive content, always use extractText with scroll=true to capture all content beyond the visible viewport. This ensures you get complete information rather than just what fits on screen.',
+  'Use available browser tools when beneficial: searchWeb, listOpenTabs, openNewTab, switchToTabByTitle, closeCurrentTab; and page tools: waitForSelector, clickSelector, clickLinkByText, fillSelector, insertText, pressKey, focusSelector, selectOption, scrollTo, navigate, extractText, getLinksOnPage, getSearchResults, clickSearchResultByDomain.',
+  'Operate safely: ask for approval when prompted, use minimal precise actions, and be transparent about what you did and any limitations. If an action fails, explain and suggest alternatives.',
+  'Format equations and key expressions using LaTeX: use $...$ for inline math and $$...$$ or \\[...\\] for display math. Avoid full LaTeX document preambles; write concise text with math where helpful.'
+].join('\n');
+
 let port;
+
+// Render text with inline/display LaTeX using KaTeX, preserving surrounding text
+function renderWithKaTeXInline(container, text) {
+  let idx = 0;
+  const re = /(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([^\)]+?\\\)|\$[^$\n]+?\$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > idx) {
+      container.appendChild(document.createTextNode(text.slice(idx, m.index)));
+    }
+    const token = m[0];
+    let display = false;
+    let math = '';
+    if (token.startsWith('$$')) { display = true; math = token.slice(2, -2); }
+    else if (token.startsWith('\\[')) { display = true; math = token.slice(2, -2); }
+    else if (token.startsWith('\\(')) { display = false; math = token.slice(2, -2); }
+    else if (token.startsWith('$')) { display = false; math = token.slice(1, -1); }
+    const span = document.createElement('span');
+    try {
+      window.katex?.render(math, span, { throwOnError: false, displayMode: display });
+    } catch (e) {
+      span.textContent = token; // fallback to raw token
+    }
+    container.appendChild(span);
+    idx = m.index + token.length;
+  }
+  if (idx < text.length) {
+    container.appendChild(document.createTextNode(text.slice(idx)));
+  }
+}
+
+function renderMathOrText(container, text) {
+  if (!text) {
+    container.textContent = '';
+    return;
+  }
+  const hasMath = /\$\$[\s\S]+?\$\$|\\\[[\s\S]*?\\\]|\\\([^\)]*?\\\)|\$[^$\n]+\$/.test(text);
+  if (window.katex && hasMath) {
+    // Split into paragraphs by blank lines to preserve layout
+    const paragraphs = text.split(/\n{2,}/);
+    for (const para of paragraphs) {
+      const div = document.createElement('div');
+      renderWithKaTeXInline(div, para);
+      container.appendChild(div);
+    }
+  } else {
+    container.textContent = text;
+  }
+}
 
 function appendMsg(role, text) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  div.textContent = text;
+  renderMathOrText(div, text);
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -23,6 +95,7 @@ function setStreaming(role, on) {
     const div = document.createElement('div');
     div.className = `msg ${role} streaming`;
     div.id = 'streaming';
+    div.innerHTML = '<span class="status-indicator">✨ AI is thinking...</span>';
     messagesEl.appendChild(div);
   } else {
     const div = document.getElementById('streaming');
@@ -31,8 +104,26 @@ function setStreaming(role, on) {
 }
 
 function updateStreamingText(text) {
+  streamingAccumulator += text;
   const div = document.getElementById('streaming');
-  if (div) div.textContent += text;
+  if (div) {
+    // Clear status indicator and show actual text
+    const statusIndicator = div.querySelector('.status-indicator');
+    if (statusIndicator) {
+      statusIndicator.remove();
+    }
+    div.textContent += text; // stream raw; final render happens on STREAM_DONE
+  }
+}
+
+function updateStatusIndicator(status) {
+  const div = document.getElementById('streaming');
+  if (div) {
+    const statusIndicator = div.querySelector('.status-indicator');
+    if (statusIndicator) {
+      statusIndicator.textContent = status;
+    }
+  }
 }
 
 sendBtn.addEventListener('click', send);
@@ -41,10 +132,6 @@ inputEl.addEventListener('keydown', (e) => {
     e.preventDefault();
     send();
   }
-});
-
-clearBtn.addEventListener('click', () => {
-  messagesEl.innerHTML = '';
 });
 
 settingsBtn.addEventListener('click', () => {
@@ -59,27 +146,42 @@ settingsBtn.addEventListener('click', () => {
 async function send() {
   const text = inputEl.value.trim();
   if (!text) return;
-  appendMsg('user', text);
   inputEl.value = '';
+  pendingUserText = text;
+  appendMsg('user', text);
   setStreaming('assistant', true);
 
-  if (!hasChrome) {
-    // Preview mode: simulate streamed response
-    const demo = 'This is a preview of the Gemini side panel UI. In the extension, responses will stream here.';
-    for (const ch of demo) {
-      await new Promise(r => setTimeout(r, 12));
-      updateStreamingText(ch);
-    }
-    const div = document.getElementById('streaming');
-    if (div) div.id = '';
-    return;
-  }
+  // Build conversation with last few turns
+  const baseHistory = chatHistory.slice(-8);
+  const messages = [...baseHistory, { role: 'user', content: text }];
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  chrome.tabs.sendMessage(tab.id, { type: 'COLLECT_PAGE_CONTEXT' }, (ctx) => {
-    const payload = { messages: [{ role: 'user', content: `${text}\n\nContext:${ctx?.summary || ''}` }] };
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab || tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
+        // Proceed without page context on restricted pages
+        const payload = { messages, system: SYSTEM_PROMPT };
+        chrome.runtime.sendMessage({ type: 'ASK_GEMINI', payload });
+        return;
+      }
+      // Try to collect page context and include it
+      chrome.tabs.sendMessage(tab.id, { type: 'COLLECT_PAGE_CONTEXT' }, (ctx) => {
+        let err = chrome.runtime.lastError;
+        if (err) {
+          appendMsg('assistant', "Heads up: I can't read this page due to browser restrictions. I'll answer without page context. Try on a regular website (https://...) for full functionality.");
+        }
+        const withContext = ctx ? [{ role: 'user', content: `Page context (may be partial or outdated):\n${JSON.stringify(ctx)}` }] : [];
+        const payload = { messages: [...withContext, ...messages], system: SYSTEM_PROMPT };
+        chrome.runtime.sendMessage({ type: 'ASK_GEMINI', payload, tabId: tab.id });
+      });
+    });
+  } catch (e) {
+    appendMsg('assistant', "Unable to detect the active tab. I'll answer without page context.");
+    const baseHistory = chatHistory.slice(-8);
+    const messages = [...baseHistory, { role: 'user', content: text }];
+    const payload = { messages, system: SYSTEM_PROMPT };
     chrome.runtime.sendMessage({ type: 'ASK_GEMINI', payload });
-  });
+  }
 }
 
 if (hasChrome) {
@@ -94,10 +196,60 @@ if (hasChrome) {
       }
     } else if (msg.type === 'STREAM_DONE') {
       const div = document.getElementById('streaming');
-      if (div) div.id = '';
+      if (div) {
+        // Re-render the final assistant message with KaTeX support
+        div.classList.remove('streaming');
+        div.id = '';
+        div.textContent = '';
+        renderMathOrText(div, streamingAccumulator);
+      }
+      // finalize turn into chat history
+      if (pendingUserText) chatHistory.push({ role: 'user', content: pendingUserText });
+      if (streamingAccumulator) chatHistory.push({ role: 'assistant', content: streamingAccumulator });
+      pendingUserText = null;
+      streamingAccumulator = '';
     } else if (msg.type === 'PREFILL_SELECTION') {
       const text = msg.text || '';
       if (text) inputEl.value = `Summarize selection:\n\n${text}`;
+    } else if (msg.type === 'TOOL_STATUS_UPDATE') {
+      updateStatusIndicator(msg.status);
     }
   });
 }
+
+// Tool approval modal elements
+const toolApproval = document.getElementById('toolApproval');
+const toolList = document.getElementById('toolList');
+const approveTools = document.getElementById('approveTools');
+const declineTools = document.getElementById('declineTools');
+let pendingApproval = null;
+
+if (hasChrome) {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type === 'REQUEST_TOOL_APPROVAL') {
+      pendingApproval = { id: msg.id, calls: msg.calls };
+      // Populate list
+      toolList.innerHTML = '';
+      for (const call of msg.calls) {
+        const li = document.createElement('li');
+        li.textContent = `${call.name}(${JSON.stringify(call.args)})`;
+        toolList.appendChild(li);
+      }
+      toolApproval.hidden = false;
+    }
+  });
+}
+
+approveTools?.addEventListener('click', () => {
+  if (!pendingApproval) return;
+  chrome.runtime.sendMessage({ type: 'TOOL_APPROVAL_RESPONSE', id: pendingApproval.id, approved: true });
+  toolApproval.hidden = true;
+  pendingApproval = null;
+});
+
+declineTools?.addEventListener('click', () => {
+  if (!pendingApproval) return;
+  chrome.runtime.sendMessage({ type: 'TOOL_APPROVAL_RESPONSE', id: pendingApproval.id, approved: false });
+  toolApproval.hidden = true;
+  pendingApproval = null;
+});

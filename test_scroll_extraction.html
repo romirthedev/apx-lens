@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔄 Scroll Extraction Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            background: #f3f4f6;
+            border-left: 4px solid #6b7280;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #ecfdf5;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .info {
+            border-left-color: #3b82f6;
+            background: #eff6ff;
+        }
+        input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .comparison-item {
+            padding: 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+        }
+        .comparison-item h4 {
+            margin-top: 0;
+            color: #374151;
+        }
+        .stats {
+            background: #f0f9ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Scroll Extraction Test</h1>
+        <p>This page tests the enhanced extractText functionality with scroll=true parameter to verify comprehensive content extraction.</p>
+        
+        <div class="test-section">
+            <h3>📋 Test Log</h3>
+            <div id="testLog" class="result"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Test extractText with Scroll</h3>
+            <p>Compare extraction with and without scrolling on the current page.</p>
+            <input type="text" id="selectorInput" placeholder="CSS selector (optional)" style="width: 300px;">
+            <br>
+            <button onclick="testExtractionComparison()">Compare Scroll vs No-Scroll</button>
+            <div id="comparisonResult" class="result"></div>
+            
+            <div id="comparisonDetails" class="comparison" style="display: none;">
+                <div class="comparison-item">
+                    <h4>Without Scroll (scroll=false)</h4>
+                    <div class="stats" id="noScrollStats"></div>
+                    <div id="noScrollContent" class="result" style="max-height: 200px;"></div>
+                </div>
+                <div class="comparison-item">
+                    <h4>With Scroll (scroll=true)</h4>
+                    <div class="stats" id="scrollStats"></div>
+                    <div id="scrollContent" class="result" style="max-height: 200px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Test on US News Rankings</h3>
+            <p>Navigate to US News CS rankings and test scroll extraction.</p>
+            <button onclick="testUSNewsExtraction()" id="usNewsBtn">Test US News Extraction</button>
+            <div id="usNewsResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Page Analysis</h3>
+            <p>Analyze the current page for content that might require scrolling.</p>
+            <button onclick="analyzePageForScrolling()">Analyze Page</button>
+            <div id="analysisResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let testLog = [];
+        let stepCounter = 0;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            testLog.push({ message: logEntry, type });
+            
+            const logEl = document.getElementById('testLog');
+            logEl.textContent = testLog.map(l => l.message).join('\n');
+            logEl.className = `result ${type}`;
+            logEl.scrollTop = logEl.scrollHeight;
+            
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            testLog = [];
+            document.getElementById('testLog').textContent = '';
+            log('Log cleared', 'info');
+        }
+
+        function displayResult(elementId, data, isSuccess = false) {
+            const el = document.getElementById(elementId);
+            el.textContent = JSON.stringify(data, null, 2);
+            el.className = `result ${isSuccess ? 'success' : 'info'}`;
+        }
+
+        async function sendToolMessage(toolName, args) {
+            return new Promise((resolve) => {
+                const message = {
+                    type: 'EXECUTE_TOOL',
+                    name: toolName,
+                    args: args
+                };
+                
+                chrome.runtime.sendMessage(message, (response) => {
+                    if (chrome.runtime.lastError) {
+                        log(`Error: ${chrome.runtime.lastError.message}`, 'error');
+                        resolve({ error: chrome.runtime.lastError.message });
+                    } else {
+                        resolve(response?.result || response);
+                    }
+                });
+            });
+        }
+
+        async function testExtractionComparison() {
+            const selector = document.getElementById('selectorInput').value.trim();
+            log('🔄 Starting extraction comparison...', 'info');
+            
+            try {
+                // Test without scroll
+                log('Testing extraction without scroll...', 'info');
+                const noScrollResult = await sendToolMessage('extractText', {
+                    selector: selector || undefined,
+                    scroll: false
+                });
+                
+                // Test with scroll
+                log('Testing extraction with scroll...', 'info');
+                const scrollResult = await sendToolMessage('extractText', {
+                    selector: selector || undefined,
+                    scroll: true
+                });
+                
+                // Compare results
+                const noScrollLength = noScrollResult.text?.length || 0;
+                const scrollLength = scrollResult.text?.length || 0;
+                const improvement = scrollLength - noScrollLength;
+                const improvementPercent = noScrollLength > 0 ? ((improvement / noScrollLength) * 100).toFixed(1) : 'N/A';
+                
+                const comparison = {
+                    noScrollLength,
+                    scrollLength,
+                    improvement,
+                    improvementPercent: improvementPercent + '%',
+                    scrollIsLonger: scrollLength > noScrollLength,
+                    significantImprovement: improvement > 500
+                };
+                
+                displayResult('comparisonResult', comparison, comparison.significantImprovement);
+                
+                // Show detailed comparison
+                document.getElementById('comparisonDetails').style.display = 'grid';
+                
+                // No scroll details
+                document.getElementById('noScrollStats').textContent = 
+                    `Length: ${noScrollLength} chars | Words: ${(noScrollResult.text?.split(/\s+/).length || 0)}`;
+                document.getElementById('noScrollContent').textContent = 
+                    noScrollResult.text?.substring(0, 1000) + (noScrollLength > 1000 ? '...' : '') || 'No content';
+                
+                // Scroll details
+                document.getElementById('scrollStats').textContent = 
+                    `Length: ${scrollLength} chars | Words: ${(scrollResult.text?.split(/\s+/).length || 0)}`;
+                document.getElementById('scrollContent').textContent = 
+                    scrollResult.text?.substring(0, 1000) + (scrollLength > 1000 ? '...' : '') || 'No content';
+                
+                if (comparison.significantImprovement) {
+                    log('✅ Scroll extraction shows significant improvement!', 'success');
+                } else if (comparison.scrollIsLonger) {
+                    log('✅ Scroll extraction captured more content', 'success');
+                } else {
+                    log('⚠️ No significant difference between scroll and no-scroll', 'error');
+                }
+                
+            } catch (error) {
+                log(`Error during comparison: ${error.message}`, 'error');
+                displayResult('comparisonResult', { error: error.message }, false);
+            }
+        }
+
+        async function testUSNewsExtraction() {
+            const btn = document.getElementById('usNewsBtn');
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            
+            try {
+                log('🎯 Starting US News extraction test...', 'info');
+                
+                // Navigate to US News CS rankings
+                log('Navigating to US News CS rankings...', 'info');
+                const navResult = await sendToolMessage('navigate', {
+                    url: 'https://www.usnews.com/best-graduate-schools/top-science-schools/computer-science-rankings'
+                });
+                
+                if (!navResult.ok) {
+                    throw new Error('Failed to navigate to US News');
+                }
+                
+                // Wait for page to load
+                await new Promise(resolve => setTimeout(resolve, 4000));
+                
+                // Try to wait for ranking content
+                log('Waiting for ranking content to load...', 'info');
+                try {
+                    await sendToolMessage('waitForSelector', {
+                        selector: '.school-name, .university-name, h3, .ranking-item',
+                        timeoutMs: 5000
+                    });
+                } catch (e) {
+                    log('Could not find specific ranking selectors, proceeding anyway...', 'info');
+                }
+                
+                // Extract with scroll
+                log('Extracting rankings with scroll=true...', 'info');
+                const extractResult = await sendToolMessage('extractText', {
+                    scroll: true
+                });
+                
+                const text = extractResult.text || '';
+                const hasUniversities = text.includes('MIT') || text.includes('Stanford') || text.includes('Carnegie Mellon') || text.includes('University');
+                const hasNumbers = /\b[1-9]\d*\b/.test(text);
+                const textLength = text.length;
+                
+                const result = {
+                    success: hasUniversities && textLength > 1000,
+                    textLength,
+                    hasUniversities,
+                    hasNumbers,
+                    preview: text.substring(0, 500) + (textLength > 500 ? '...' : ''),
+                    universities: (text.match(/\b(MIT|Stanford|Carnegie Mellon|Harvard|Berkeley|Princeton|Cornell|Yale|Columbia|University of [A-Z][a-z]+)\b/g) || []).slice(0, 10)
+                };
+                
+                displayResult('usNewsResult', result, result.success);
+                
+                if (result.success) {
+                    log('🎉 SUCCESS: Successfully extracted university rankings!', 'success');
+                } else {
+                    log('⚠️ Extraction completed but may not contain complete rankings', 'error');
+                }
+                
+            } catch (error) {
+                log(`Error during US News test: ${error.message}`, 'error');
+                displayResult('usNewsResult', { error: error.message }, false);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Test US News Extraction';
+            }
+        }
+
+        async function analyzePageForScrolling() {
+            log('📊 Analyzing page for scroll requirements...', 'info');
+            
+            try {
+                const analysis = {
+                    url: window.location.href,
+                    title: document.title,
+                    bodyHeight: document.body.scrollHeight,
+                    viewportHeight: window.innerHeight,
+                    needsScrolling: document.body.scrollHeight > window.innerHeight * 1.5,
+                    scrollRatio: (document.body.scrollHeight / window.innerHeight).toFixed(2),
+                    visibleElements: document.querySelectorAll('*').length,
+                    hiddenElements: Array.from(document.querySelectorAll('*')).filter(el => {
+                        const rect = el.getBoundingClientRect();
+                        return rect.top > window.innerHeight || rect.bottom < 0;
+                    }).length
+                };
+                
+                // Check for ranking-related content
+                const rankingSelectors = ['.ranking', '.rank', '[class*="rank"]', '[id*="rank"]', 'ol li', 'ul li'];
+                analysis.potentialRankingElements = rankingSelectors.reduce((acc, sel) => {
+                    acc[sel] = document.querySelectorAll(sel).length;
+                    return acc;
+                }, {});
+                
+                // Check for pagination or "load more" indicators
+                const paginationSelectors = ['.pagination', '.load-more', '[class*="page"]', 'button[class*="more"]'];
+                analysis.paginationElements = paginationSelectors.reduce((acc, sel) => {
+                    acc[sel] = document.querySelectorAll(sel).length;
+                    return acc;
+                }, {});
+                
+                displayResult('analysisResult', analysis, analysis.needsScrolling);
+                
+                if (analysis.needsScrolling) {
+                    log('✅ Page likely benefits from scroll extraction', 'success');
+                } else {
+                    log('ℹ️ Page content may fit in viewport', 'info');
+                }
+                
+            } catch (error) {
+                log(`Error during analysis: ${error.message}`, 'error');
+                displayResult('analysisResult', { error: error.message }, false);
+            }
+        }
+
+        // Initialize
+        log('🔄 Scroll Extraction Test initialized', 'info');
+        log('Ready to test enhanced extractText functionality', 'info');
+    </script>
+</body>
+</html>

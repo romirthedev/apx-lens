@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Extension Tools Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-left: 4px solid #28a745;
+        }
+        .error {
+            border-left: 4px solid #dc3545;
+        }
+        .warning {
+            border-left: 4px solid #ffc107;
+        }
+        .step-counter {
+            background: #007cba;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .log-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .log-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Extension Tools Direct Test</h1>
+        <p>This page tests the Chrome extension tools directly to verify the US News extraction flow.</p>
+        
+        <div class="test-section">
+            <h3>📋 Test Log</h3>
+            <div id="testLog" class="result"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Step 1: Search Web</h3>
+            <p>Test the searchWeb tool to open US News CS rankings search.</p>
+            <button onclick="testSearchWeb()">Test Search Web</button>
+            <div id="searchResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📄 Step 2: Get Search Results</h3>
+            <p>Parse search results from the current page (run after search).</p>
+            <button onclick="testGetSearchResults()">Test Get Search Results</button>
+            <div id="searchResultsResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Step 3: Click US News Result</h3>
+            <p>Click on the US News domain result from search results.</p>
+            <button onclick="testClickSearchResultByDomain()">Test Click US News Result</button>
+            <div id="clickResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>⏳ Step 4: Wait for Selector</h3>
+            <p>Wait for ranking content to load on US News page.</p>
+            <input type="text" id="selectorInput" placeholder="Enter CSS selector (e.g., .ranking-item)" style="width: 300px; padding: 5px; margin: 5px;">
+            <button onclick="testWaitForSelector()">Test Wait for Selector</button>
+            <div id="waitResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Step 5: Extract Text</h3>
+            <p>Extract ranking text from the US News page.</p>
+            <input type="text" id="extractSelectorInput" placeholder="Enter CSS selector (optional)" style="width: 300px; padding: 5px; margin: 5px;">
+            <button onclick="testExtractText()">Test Extract Text</button>
+            <div id="extractResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Full Flow Test</h3>
+            <p>Run the complete extraction flow automatically.</p>
+            <button onclick="runFullFlow()" id="fullFlowBtn">Run Full Flow</button>
+            <div id="fullFlowResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Current Page Analysis</h3>
+            <p>Analyze the current page for available selectors and content.</p>
+            <button onclick="analyzeCurrentPage()">Analyze Current Page</button>
+            <div id="analysisResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let stepCounter = 0;
+        let testLog = [];
+
+        function log(message, type = 'info') {
+            stepCounter++;
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = {
+                step: stepCounter,
+                timestamp,
+                message,
+                type
+            };
+            testLog.push(logEntry);
+            
+            const logDiv = document.getElementById('testLog');
+            const entryDiv = document.createElement('div');
+            entryDiv.className = `log-entry log-${type}`;
+            entryDiv.innerHTML = `<span class="step-counter">${stepCounter}</span>[${timestamp}] ${message}`;
+            logDiv.appendChild(entryDiv);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            testLog = [];
+            stepCounter = 0;
+            document.getElementById('testLog').innerHTML = '';
+        }
+
+        function displayResult(elementId, data, success = true) {
+            const element = document.getElementById(elementId);
+            element.className = `result ${success ? 'success' : 'error'}`;
+            element.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function sendToolMessage(tool, args = {}) {
+            return new Promise((resolve, reject) => {
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    reject(new Error('Chrome extension context not available'));
+                    return;
+                }
+
+                chrome.runtime.sendMessage({
+                    type: 'executeTool',
+                    tool: tool,
+                    args: args
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
+        }
+
+        async function testSearchWeb() {
+            log('Testing searchWeb tool...', 'info');
+            try {
+                const result = await sendToolMessage('searchWeb', {
+                    query: 'US News Computer Science rankings',
+                    engine: 'google'
+                });
+                log(`searchWeb result: ${JSON.stringify(result)}`, result.ok ? 'success' : 'error');
+                displayResult('searchResult', result, result.ok);
+            } catch (error) {
+                log(`searchWeb error: ${error.message}`, 'error');
+                displayResult('searchResult', { error: error.message }, false);
+            }
+        }
+
+        async function testGetSearchResults() {
+            log('Testing getSearchResults tool...', 'info');
+            try {
+                const result = await sendToolMessage('getSearchResults', {});
+                log(`getSearchResults found ${result.items?.length || 0} results`, result.items?.length > 0 ? 'success' : 'error');
+                displayResult('searchResultsResult', result, result.items?.length > 0);
+            } catch (error) {
+                log(`getSearchResults error: ${error.message}`, 'error');
+                displayResult('searchResultsResult', { error: error.message }, false);
+            }
+        }
+
+        async function testClickSearchResultByDomain() {
+            log('Testing clickSearchResultByDomain tool...', 'info');
+            try {
+                const result = await sendToolMessage('clickSearchResultByDomain', {
+                    domain: 'usnews.com'
+                });
+                log(`clickSearchResultByDomain result: ${JSON.stringify(result)}`, result.ok ? 'success' : 'error');
+                displayResult('clickResult', result, result.ok);
+            } catch (error) {
+                log(`clickSearchResultByDomain error: ${error.message}`, 'error');
+                displayResult('clickResult', { error: error.message }, false);
+            }
+        }
+
+        async function testWaitForSelector() {
+            const selector = document.getElementById('selectorInput').value || '.ranking-item';
+            log(`Testing waitForSelector with: ${selector}`, 'info');
+            try {
+                const result = await sendToolMessage('waitForSelector', {
+                    selector: selector,
+                    timeoutMs: 5000
+                });
+                log(`waitForSelector result: ${JSON.stringify(result)}`, result.ok ? 'success' : 'error');
+                displayResult('waitResult', result, result.ok);
+            } catch (error) {
+                log(`waitForSelector error: ${error.message}`, 'error');
+                displayResult('waitResult', { error: error.message }, false);
+            }
+        }
+
+        async function testExtractText() {
+            const selector = document.getElementById('extractSelectorInput').value;
+            log(`Testing extractText with selector: ${selector || 'none (full page)'}`, 'info');
+            try {
+                const result = await sendToolMessage('extractText', {
+                    selector: selector
+                });
+                const hasText = result.text && result.text.length > 100;
+                log(`extractText extracted ${result.text?.length || 0} characters`, hasText ? 'success' : 'error');
+                displayResult('extractResult', {
+                    textLength: result.text?.length || 0,
+                    preview: result.text?.substring(0, 500) + '...' || 'No text',
+                    containsRankings: result.text?.includes('MIT') || result.text?.includes('Stanford') || false
+                }, hasText);
+            } catch (error) {
+                log(`extractText error: ${error.message}`, 'error');
+                displayResult('extractResult', { error: error.message }, false);
+            }
+        }
+
+        async function runFullFlow() {
+            const btn = document.getElementById('fullFlowBtn');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            
+            log('🚀 Starting full flow test...', 'info');
+            
+            try {
+                // Step 1: Search
+                log('Step 1: Searching for US News CS rankings...', 'info');
+                const searchResult = await sendToolMessage('searchWeb', {
+                    query: 'US News Computer Science rankings',
+                    engine: 'google'
+                });
+                
+                if (!searchResult.ok) {
+                    throw new Error('Search failed');
+                }
+                log('✅ Search completed successfully', 'success');
+                
+                // Wait for search page to load
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Step 2: Get search results
+                log('Step 2: Getting search results...', 'info');
+                const searchResults = await sendToolMessage('getSearchResults', {});
+                
+                if (!searchResults.items || searchResults.items.length === 0) {
+                    throw new Error('No search results found');
+                }
+                log(`✅ Found ${searchResults.items.length} search results`, 'success');
+                
+                // Step 3: Click US News result
+                log('Step 3: Clicking US News result...', 'info');
+                const clickResult = await sendToolMessage('clickSearchResultByDomain', {
+                    domain: 'usnews.com'
+                });
+                
+                if (!clickResult.ok) {
+                    throw new Error('Failed to click US News result');
+                }
+                log('✅ Successfully clicked US News result', 'success');
+                
+                // Wait for page to load
+                await new Promise(resolve => setTimeout(resolve, 4000));
+                
+                // Step 4: Try to find rankings content
+                log('Step 4: Looking for ranking content...', 'info');
+                const selectors = ['.ranking-item', '.school-name', '.university-name', 'h3', 'h2'];
+                let foundSelector = null;
+                
+                for (const selector of selectors) {
+                    try {
+                        const waitResult = await sendToolMessage('waitForSelector', {
+                            selector: selector,
+                            timeoutMs: 3000
+                        });
+                        if (waitResult.ok) {
+                            foundSelector = selector;
+                            log(`✅ Found content with selector: ${selector}`, 'success');
+                            break;
+                        }
+                    } catch (error) {
+                        log(`Selector ${selector} not found`, 'info');
+                    }
+                }
+                
+                // Step 5: Extract text
+                log('Step 5: Extracting ranking text...', 'info');
+                const extractResult = await sendToolMessage('extractText', {
+                    selector: foundSelector || ''
+                });
+                
+                const hasRankings = extractResult.text && (
+                    extractResult.text.includes('MIT') || 
+                    extractResult.text.includes('Stanford') ||
+                    extractResult.text.includes('Carnegie Mellon')
+                );
+                
+                if (hasRankings) {
+                    log('🎉 SUCCESS: Found university rankings!', 'success');
+                    displayResult('fullFlowResult', {
+                        success: true,
+                        textLength: extractResult.text.length,
+                        preview: extractResult.text.substring(0, 1000) + '...',
+                        containsRankings: true
+                    }, true);
+                } else {
+                    log('⚠️ Extracted text but no recognizable rankings found', 'error');
+                    displayResult('fullFlowResult', {
+                        success: false,
+                        textLength: extractResult.text?.length || 0,
+                        preview: extractResult.text?.substring(0, 500) + '...' || 'No text',
+                        containsRankings: false
+                    }, false);
+                }
+                
+            } catch (error) {
+                log(`❌ Full flow failed: ${error.message}`, 'error');
+                displayResult('fullFlowResult', { error: error.message }, false);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run Full Flow';
+            }
+        }
+
+        async function analyzeCurrentPage() {
+            log('Analyzing current page...', 'info');
+            
+            const analysis = {
+                url: window.location.href,
+                title: document.title,
+                selectors: {},
+                textContent: {
+                    totalLength: document.body.textContent.length,
+                    containsRankings: document.body.textContent.includes('MIT') || 
+                                    document.body.textContent.includes('Stanford') ||
+                                    document.body.textContent.includes('Computer Science')
+                }
+            };
+            
+            // Test common selectors
+            const testSelectors = [
+                'h1', 'h2', 'h3', '.title', '.ranking-item', '.school-name', 
+                '.university-name', '[data-testid]', '.ranking-list', 'main', 'article'
+            ];
+            
+            for (const selector of testSelectors) {
+                try {
+                    const elements = document.querySelectorAll(selector);
+                    analysis.selectors[selector] = {
+                        count: elements.length,
+                        hasText: elements.length > 0 && elements[0].textContent.trim().length > 0,
+                        firstText: elements.length > 0 ? elements[0].textContent.trim().substring(0, 100) : null
+                    };
+                } catch (error) {
+                    analysis.selectors[selector] = { error: error.message };
+                }
+            }
+            
+            log(`Page analysis completed. Found ${Object.keys(analysis.selectors).filter(s => analysis.selectors[s].count > 0).length} working selectors`, 'success');
+            displayResult('analysisResult', analysis, true);
+        }
+
+        // Check if we're in extension context
+        if (typeof chrome === 'undefined' || !chrome.runtime) {
+            log('⚠️ Chrome extension context not detected. Please load this page in the extension.', 'error');
+        } else {
+            log('✅ Chrome extension context detected. Ready to test!', 'success');
+        }
+    </script>
+</body>
+</html>
