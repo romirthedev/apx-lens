@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemini Side Panel</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="lib/katex/katex.min.css">
+</head>
+<body class="theme">
+  <div id="app" class="sp-container">
+    <header class="sp-header">
+      <div class="logo">Gemini</div>
+      <div class="sp-actions">
+        <button id="settingsBtn" class="btn ghost">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-settings"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+      </div>
+    </header>
+    <main class="sp-main">
+      <div id="messages" class="chat"></div>
+    </main>
+    
+    <!-- Tool approval modal -->
+    <div id="toolApproval" class="modal" hidden>
+      <div class="modal-content">
+        <div class="modal-title">Allow Gemini to perform these actions?</div>
+        <ul id="toolList" class="tool-list"></ul>
+        <div class="modal-actions">
+          <button id="approveTools" class="btn primary">Allow</button>
+          <button id="declineTools" class="btn ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="sp-footer">
+      <textarea id="input" placeholder="Ask Gemini... (Shift+Enter for newline)" rows="2"></textarea>
+      <button id="sendBtn" class="btn primary">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      </button>
+    </footer>
+  </div>
+  <script defer src="lib/katex/katex.min.js"></script>
+  <script defer src="sidepanel.js"></script>
+</body>
+</html>

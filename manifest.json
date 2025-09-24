@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Apx Lens",
+  "version": "0.1.0",
+  "description": "Your Personal Assistant, built into Chrome.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "tabs",
+    "contextMenus",
+    "sidePanel",
+    "notifications"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Gemini",
+    "default_icon": "icons/icon.svg"
+  },
+  "options_page": "options.html",
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

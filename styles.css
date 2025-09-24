@@ -1,0 +1,120 @@
+/* Cream background with light grey accents */
+:root {
+  --bg: #f9f6ef; /* cream */
+  --fg: #2d2d2d;
+  --muted: #8a8a8a;
+  --accent: #d9d9d9; /* light grey */
+  --primary: #5b5b5b;
+  --surface: #ffffffcc;
+  --border: #e6e6e6;
+  --radius: 12px;
+}
+
+body.theme {
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+}
+
+/* Side panel layout */
+.sp-container { display: flex; flex-direction: column; height: 100vh; }
+.sp-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(10px); }
+.logo { font-weight: 600; letter-spacing: 0.2px; }
+.sp-actions { display: flex; gap: 8px; }
+
+.sp-main { flex: 1; overflow: auto; padding: 12px; }
+.chat { display: flex; flex-direction: column; gap: 8px; }
+.msg { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+.msg.user { background: #fff; border-color: var(--accent); }
+.msg.assistant { background: #fff; border-color: var(--border); }
+.msg.streaming { outline: 1px dashed var(--accent); }
+
+.sp-footer { display: grid; grid-template-columns: 1fr 60px; gap: 5px; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface); }
+#input { width: auto; border-radius: var(--radius); padding: 8px 12px; border: 1px solid var(--accent); resize: vertical; min-height: 8px; max-width: 300px; /* Adjust as needed */ }
+
+.btn { border: 1px solid var(--accent); background: #fff; color: var(--fg); padding: 2px 3px; border-radius: 10px; cursor: pointer; }
+.btn:hover { background: #fafafa; }
+.btn.primary {
+  background: var(--bg); /* Cream background */
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.btn.primary svg {
+  stroke: var(--fg); /* Icon color */
+}
+.btn.ghost { background: transparent; }
+
+/* Popup and options can reuse base styles */
+.popup, .options { padding: 12px; }
+
+/* Status indicator with glimmering animation */
+.status-indicator {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--muted), var(--primary), var(--muted));
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2s ease-in-out infinite;
+  font-weight: 500;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.field { display: grid; gap: 6px; margin-bottom: 12px; }
+input[type="text"], input[type="password"], select { border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; }
+label { font-size: 12px; color: var(--muted); }
+
+.small { font-size: 12px; color: var(--muted); }
+
+
+/* Basic chat message styling */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.msg {
+  padding: 8px 12px;
+  border-radius: 15px;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background-color: #e0f7fa; /* Light blue for user messages */
+  color: #333;
+  border-bottom-right-radius: 2px;
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background-color: #f1f8e9; /* Light green for assistant messages */
+  color: #333;
+  border-bottom-left-radius: 2px;
+}
+
+.msg.streaming {
+  background-color: #f0f0f0;
+  color: #555;
+  font-style: italic;
+}
+
+
+/* Tool approval modal */
+.modal[hidden] { display: none; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.25); display: grid; place-items: center; z-index: 1000; }
+.modal-content { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; width: min(520px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+.modal-title { font-weight: 600; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.tool-list { list-style: none; padding: 12px 16px; margin: 0; max-height: 40vh; overflow: auto; }
+.tool-list li { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-alt); margin-bottom: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
